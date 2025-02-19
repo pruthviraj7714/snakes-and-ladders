@@ -21,3 +21,27 @@ gameRouter.get("/games", userMiddleware, async (req: Request, res: Response): Pr
     });
   }
 });
+
+gameRouter.post('/create', userMiddleware, async (req : Request, res :Response) : Promise<void> => {
+  try {
+    const bidAmount = req.body.bidAmount;
+    const game = await prisma.game.create({
+      data : {
+        bidAmount,
+        player1Id : req.userId, 
+        player2Id : ""
+      }
+    })
+
+    res.status(201).json({
+      message : "Game Room Created Successfully",
+      game
+    })
+
+  } catch (error) {
+    res.status(500).json({
+      message : "Internal Server Error"
+    });
+  }
+})
+
