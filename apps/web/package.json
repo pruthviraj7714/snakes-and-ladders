@@ -12,7 +12,11 @@
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.8",
+    "framer-motion": "^12.4.5",
+    "jsonwebtoken": "^9.0.2",
     "next": "^15.1.6",
+    "next-auth": "^4.24.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -21,6 +25,7 @@
     "@repo/eslint-config": "workspace:*",
     "@repo/tailwind-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@repo/db": "workspace:*",
     "@types/node": "^22.12.0",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

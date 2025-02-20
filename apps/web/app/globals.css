@@ -25,3 +25,7 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+
+.animate-shake {
+  animation: shake 0.5s infinite;
+}

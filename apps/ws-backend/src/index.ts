@@ -10,9 +10,10 @@ function verifyUser(token: string) {
   try {
     const user = verify(
       token,
-      process.env.NEXTAUTH_SECRET as string
+      process.env.NEXTAUTH_SECRET!
     ) as JwtPayload;
-    return user.userId;
+    
+    return user.id;
   } catch (error) {
     console.error("Unauthorized User!");
     return;
@@ -20,8 +21,7 @@ function verifyUser(token: string) {
 }
 
 wss.on("connection", function connection(ws, req) {
-  const url = new URL(req.url as string);
-  const token = url.searchParams.get("token");
+  const token = req?.url.split("?token=")[1];
 
   if (!token) {
     ws.close();

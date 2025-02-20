@@ -13,23 +13,19 @@ interface Game {
 }
 
 const snakes: Record<number, number> = {
-  27: 5,
-  40: 3,
-  43: 18,
-  54: 31,
-  66: 45,
-  76: 58,
-  89: 53,
-  99: 41,
+  97: 78,
+  95: 75,
+  88: 24,
+  62: 19,
+  36: 6,
 };
 
 const ladders: Record<number, number> = {
-  4: 25,
-  13: 46,
-  33: 49,
-  50: 69,
-  62: 81,
-  74: 92,
+  4: 14,
+  9: 31,
+  21: 42,
+  28: 84,
+  51: 67,
 };
 
 class GameManager {

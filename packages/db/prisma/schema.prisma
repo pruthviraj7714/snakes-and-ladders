@@ -17,6 +17,7 @@ model User {
   id        String   @id @default(uuid())
   username  String   @unique
   balance   Int      @default(0)
+  githubId   String @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
