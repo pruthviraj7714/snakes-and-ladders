@@ -50,8 +50,8 @@ class GameManager {
         player1: userId,
         player2: "",
         currTurn: userId,
-        player1Position: 0,
-        player2Position: 0,
+        player1Position: 1,
+        player2Position: 1,
         rolls: [],
         player1Socket: ws,
         player2Socket: null,
@@ -94,10 +94,10 @@ class GameManager {
     }
 
     game.player1Socket?.send(
-      JSON.stringify({ type: "ROOM_LEAVED", userId, gameId })
+      JSON.stringify({ type: "ROOM_LEFT", userId, gameId })
     );
     game.player2Socket?.send(
-      JSON.stringify({ type: "ROOM_LEAVED", userId, gameId })
+      JSON.stringify({ type: "ROOM_LEFT", userId, gameId })
     );
 
     if (!game.player1 && !game.player2) {

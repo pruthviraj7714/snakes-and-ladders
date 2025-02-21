@@ -21,7 +21,10 @@ function verifyUser(token: string) {
 }
 
 wss.on("connection", function connection(ws, req) {
-  const token = req?.url.split("?token=")[1];
+  if(!req.url) {
+    return;
+  }
+  const token = req.url.split("?token=")[1];
 
   if (!token) {
     ws.close();
@@ -46,10 +49,10 @@ wss.on("connection", function connection(ws, req) {
     const payload = JSON.parse(data);
 
     switch (payload.type) {
-      case "JOIN_ROOM":
+      case "JOIN_GAME":
         gameManager.joinGame(playerId, payload.gameId, ws);
         break;
-      case "LEAVE_ROOM":
+      case "LEAVE_GAME":
         gameManager.leaveGame(playerId, payload.gameId);
         break;
       case "ROLL_DICE":
