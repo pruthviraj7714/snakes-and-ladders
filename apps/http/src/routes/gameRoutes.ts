@@ -15,6 +15,7 @@ gameRouter.get("/games", userMiddleware, async (req: Request, res: Response): Pr
     res.status(200).json({
       games,
     });
+    return;
   } catch (error) {
     res.status(500).json({
       message: "Internal Server Error",
@@ -36,8 +37,8 @@ gameRouter.post('/create', userMiddleware, async (req : Request, res :Response) 
     res.status(201).json({
       message : "Game Room Created Successfully",
       game
-    })
-
+    });
+    return;
   } catch (error) {
     res.status(500).json({
       message : "Internal Server Error"
