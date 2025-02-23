@@ -26,7 +26,6 @@ model User {
 
   gamesWon  Int @default(0)
   gamesLost Int @default(0)
-  gamesDraw Int @default(0)
 }
 
 model Game {
@@ -54,5 +53,4 @@ enum GameStatus {
   ACTIVE
   COMPLETED
   CANCELLED
-  DRAW
 }
