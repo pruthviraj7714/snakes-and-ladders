@@ -27,6 +27,9 @@ wss.on("connection", function connection(ws, req) {
   const token = req.url.split("?token=")[1];
 
   if (!token) {
+    ws.send(JSON.stringify({
+      error : "Token not found!"
+    }))
     ws.close();
     return;
   }

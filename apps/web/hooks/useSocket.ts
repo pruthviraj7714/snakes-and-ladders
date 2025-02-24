@@ -7,6 +7,7 @@ export function useSocket() {
     const [ws, setWs] = useState<WebSocket | null>(null);
     const [wsError, setWsError] = useState<null | Event>(null);
     const { data: session } = useSession();
+    //@ts-ignore
     const token = session?.user.accessToken;
 
     useEffect(() => {

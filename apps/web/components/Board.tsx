@@ -117,7 +117,8 @@ export default function Board({ gameId }: { gameId: string }) {
 
     ws.onmessage = ({ data }) => {
       const msg = JSON.parse(data);
-
+      console.log(msg);
+      
       switch (msg.type) {
         case "ROOM_JOINED":
           if (players.length == 0) {
@@ -135,7 +136,7 @@ export default function Board({ gameId }: { gameId: string }) {
           }
           break;
         case "ROOM_LEFT":
-          if (players.includes(msg.userId)) {
+          if (players.some(p => p.id === msg.userId)) {
             setPlayers((prev) => prev.filter((p) => p.id !== msg.userId));
           }
       }
