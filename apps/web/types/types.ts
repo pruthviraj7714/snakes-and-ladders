@@ -1,5 +1,6 @@
 export interface IGame {
   id: string;
+  title :string;
   bidAmount: number;
   status: "WAITING" | "ACTIVE" | "COMPLETED" | "CANCELLED";
   startedAt: Date;
@@ -7,5 +8,5 @@ export interface IGame {
   player2Id: string | null;
   winnerId: string | null;
   currentTurn: string | null;
-  gameData: JSON;
+  gameData: any;
 }

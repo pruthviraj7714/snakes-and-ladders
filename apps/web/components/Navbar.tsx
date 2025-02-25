@@ -16,7 +16,7 @@ const Navbar = () => {
                 <Link href={'/create-game'}>
                     Create Game
                 </Link>
-                <button onClick={() => signOut()}>
+                <button onClick={() => signOut({redirect : true})}>
                     Logout
                 </button>
             </div>

@@ -57,7 +57,7 @@ class GameManager {
         player2Socket: null,
       };
       this.games.set(gameId, game);
-    } else if (!game.player2) {
+    } else if (!game.player2 && userId !== game.player1) {
       game.player2 = userId;
       game.player2Socket = ws;
 

@@ -33,10 +33,11 @@ model Game {
   bidAmount Int
   status    GameStatus @default(WAITING)
   startedAt DateTime   @default(now())
+  title     String 
 
-  player1Id String
+  player1Id String?
   player2Id String?
-  player1   User    @relation("Player1Games", fields: [player1Id], references: [id])
+  player1   User?    @relation("Player1Games", fields: [player1Id], references: [id])
   player2   User?   @relation("Player2Games", fields: [player2Id], references: [id])
 
   winnerId String?

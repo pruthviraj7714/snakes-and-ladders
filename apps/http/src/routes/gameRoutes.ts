@@ -25,12 +25,13 @@ gameRouter.get("/games", userMiddleware, async (req: Request, res: Response): Pr
 
 gameRouter.post('/create', userMiddleware, async (req : Request, res :Response) : Promise<void> => {
   try {
-    const bidAmount = req.body.bidAmount;
+    const {title, bidAmount} = req.body;
     const game = await prisma.game.create({
       data : {
         bidAmount,
+        title,
         player1Id : req.userId, 
-        player2Id : ""
+        player2Id : null
       }
     })
 

@@ -107,7 +107,7 @@ export default function Board({ gameId }: { gameId: string }) {
   useEffect(() => {
     if (!ws) return;
 
-    ws?.send(
+    ws.send(
       JSON.stringify({
         type: "JOIN_GAME",
         gameId,
@@ -122,17 +122,19 @@ export default function Board({ gameId }: { gameId: string }) {
       switch (msg.type) {
         case "ROOM_JOINED":
           if (players.length == 0) {
-            players.push({
+            setPlayers((prev) => [...prev, {
               id: userId,
               position: Number(msg.player1Position),
               emoji: "😄",
-            });
+            }])
+            setCurrentPlayer(1);
           } else if (players.length == 1) {
-            players.push({
+            setPlayers((prev) => [...prev, {
               id: userId,
               position: Number(msg.player2Position),
-              emoji: "😙",
-            });
+              emoji: "😄",
+            }])
+            setCurrentPlayer(2);
           }
           break;
         case "ROOM_LEFT":
@@ -152,7 +154,7 @@ export default function Board({ gameId }: { gameId: string }) {
       );
       ws.close();
     };
-  }, []);
+  }, [ws]);
 
   // Draw snakes and ladders on canvas
   useEffect(() => {
