@@ -4,27 +4,42 @@ import { useEffect, useRef, useState } from "react";
 import { useSocket } from "../hooks/useSocket";
 import Dice from "./Dice";
 import { useSession } from "next-auth/react";
+import { BiLoader } from "react-icons/bi";
+import axios from "axios";
+import { BACKEND_URL } from "../config/config";
+import { useRouter } from "next/navigation";
 
 type PlayerType = {
   id: 1 | 2;
+  userId: string;
   position: number;
   emoji: string;
+};
+
+type GameStateType = {
+  player1: string;
+  player2: string;
+  player1Position: number;
+  player2Position: number;
+  currentPlayer: 1 | 2;
 };
 
 export default function Board({ gameId }: { gameId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
-  const [diceValue1, setDiceValue1] = useState(1);
-  const [diceValue2, setDiceValue2] = useState(1);
+  const [number, setNumber] = useState(1);
   const [isRolling, setIsRolling] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [players, setPlayers] = useState<PlayerType[]>([]);
   const { ws, wsError } = useSocket();
+  const [currentGameState, setCurrentGameState] =
+    useState<GameStateType | null>(null);
   const { data: session } = useSession();
   //@ts-ignore
   const userId = session?.user.id;
 
   const squares = Array.from({ length: 100 }, (_, i) => 100 - i);
+  const router = useRouter();
 
   const snakes = {
     97: 78,
@@ -42,70 +57,111 @@ export default function Board({ gameId }: { gameId: string }) {
     51: 67,
   };
 
-  const rollDice = () => {
-    if (isRolling || gameWon) return;
-
-    setIsRolling(true);
-    const rollDuration = 1000;
-
-    const startTime = Date.now();
-    const rollAnimation = () => {
-      const now = Date.now();
-      const elapsed = now - startTime;
-
-      if (elapsed < rollDuration) {
-        setDiceValue1(Math.floor(Math.random() * 6) + 1);
-        setDiceValue2(Math.floor(Math.random() * 6) + 1);
-        requestAnimationFrame(rollAnimation);
-      } else {
-        const finalValue1 = Math.floor(Math.random() * 6) + 1;
-        const finalValue2 = Math.floor(Math.random() * 6) + 1;
-        setDiceValue1(finalValue1);
-        setDiceValue2(finalValue2);
-        movePlayer(finalValue1 + finalValue2);
-        setIsRolling(false);
-      }
-    };
-
-    requestAnimationFrame(rollAnimation);
+  const PLAYER_EMOJIS = {
+    1: "😎",
+    2: "😄",
   };
 
-  const movePlayer = (spaces: number) => {
+  const movePlayer = (spaces: number, position? : number) => {
     setPlayers((prevPlayers) => {
       return prevPlayers.map((player) => {
         if (player.id === currentPlayer) {
           let newPosition = player.position + spaces;
 
-          // Check if player won
           if (newPosition >= 100) {
             setGameWon(true);
             newPosition = 100;
+
+            if (ws) {
+              ws.send(
+                JSON.stringify({
+                  type: "GAME_WON",
+                  gameId,
+                  playerId: player.id,
+                  userId,
+                })
+              );
+            }
           }
 
-          // Check for snakes
           if (newPosition in snakes) {
-            newPosition = snakes[newPosition as keyof typeof snakes];
+            ws?.send(JSON.stringify({
+              type : "SNAKE_ATE",
+              userId,
+              gameId
+            }))
           }
 
-          // Check for ladders
           if (newPosition in ladders) {
-            newPosition = ladders[newPosition as keyof typeof ladders];
+            ws?.send(JSON.stringify({
+              type : "LADDER_FOUND",
+              userId,
+              gameId
+            }))
           }
 
-          return { ...player, position: newPosition };
+          return { ...player, position: position ? position : newPosition };
         }
         return player;
       });
     });
 
-    // Switch players if game not won
     if (!gameWon) {
       setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
     }
   };
 
+  const fetchInitialGameState = async () => {
+    try {
+      const res = await axios.get(`${BACKEND_URL}/game/${gameId}`);
+      const game = res.data.game;
+
+      // Reset players array first to avoid duplicates
+      setPlayers([]);
+
+      // Add player 1
+      if (game.player1) {
+        setPlayers((prev) => [
+          ...prev,
+          {
+            id: 1,
+            userId: game.player1,
+            position: Number(game.player1Position) || 1,
+            emoji: PLAYER_EMOJIS[1],
+          },
+        ]);
+      }
+
+      // Add player 2 if exists
+      if (game.player2) {
+        setPlayers((prev) => [
+          ...prev,
+          {
+            id: 2,
+            userId: game.player2,
+            position: Number(game.player2Position) || 1,
+            emoji: PLAYER_EMOJIS[2],
+          },
+        ]);
+      }
+
+      // Set current player
+      setCurrentPlayer(game.currentPlayer || 1);
+      setCurrentGameState(game);
+    } catch (error: any) {
+      console.error("Error fetching game state:", error.message);
+      alert("Failed to load game: " + error.message);
+    }
+  };
+
+  // Initial game state fetch
   useEffect(() => {
-    if (!ws) return;
+    fetchInitialGameState();
+  }, [gameId]);
+
+  // WebSocket handler
+  useEffect(() => {
+    if (!ws || !userId) return;
 
     ws.send(
       JSON.stringify({
@@ -117,30 +173,35 @@ export default function Board({ gameId }: { gameId: string }) {
 
     ws.onmessage = ({ data }) => {
       const msg = JSON.parse(data);
-      console.log(msg);
-      
       switch (msg.type) {
-        case "ROOM_JOINED":
-          if (players.length == 0) {
-            setPlayers((prev) => [...prev, {
-              id: userId,
-              position: Number(msg.player1Position),
-              emoji: "😄",
-            }])
-            setCurrentPlayer(1);
-          } else if (players.length == 1) {
-            setPlayers((prev) => [...prev, {
-              id: userId,
-              position: Number(msg.player2Position),
-              emoji: "😄",
-            }])
-            setCurrentPlayer(2);
-          }
+        case "PLAYER_JOINED":
+          fetchInitialGameState();
           break;
+
         case "ROOM_LEFT":
-          if (players.some(p => p.id === msg.userId)) {
-            setPlayers((prev) => prev.filter((p) => p.id !== msg.userId));
+          if (players.some((p) => p.userId === msg.userId)) {
+            setPlayers((prev) => prev.filter((p) => p.userId !== msg.userId));
           }
+          setCurrentGameState(msg.game);
+          break;
+
+        case "DICE_ROLLED":
+          setNumber(Number(msg.diceRoll));
+          movePlayer(Number(msg.diceRoll));
+          setCurrentGameState(msg.game);
+          break;
+
+        case "SNAKE_EATEN_OUT":
+        movePlayer(0, userId === msg.player1 ? msg.game.player1Position : msg.game.player2Position);
+        break;
+
+        case "RISED_ON_LADDER":
+        movePlayer(0, userId === msg.player1 ? msg.game.player1Position : msg.game.player2Position);
+        break;
+          
+        case "GAME_WON":
+          setGameWon(true);
+          break;
       }
     };
 
@@ -154,7 +215,7 @@ export default function Board({ gameId }: { gameId: string }) {
       );
       ws.close();
     };
-  }, [ws]);
+  }, [ws, userId, gameId]);
 
   // Draw snakes and ladders on canvas
   useEffect(() => {
@@ -164,13 +225,10 @@ export default function Board({ gameId }: { gameId: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate square size
     const squareSize = canvas.width / 10;
 
-    // Helper function to get x,y coordinates for a number
     const getCoordinates = (number: number) => {
       const row = Math.floor((100 - number) / 10);
       const col =
@@ -187,7 +245,6 @@ export default function Board({ gameId }: { gameId: string }) {
       };
     };
 
-    // Draw snakes
     Object.entries(snakes).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
@@ -195,7 +252,6 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
-      // Create curve for snake
       const cp1x = start.x;
       const cp1y = (start.y + end.y) / 2;
       const cp2x = end.x;
@@ -207,7 +263,6 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.stroke();
     });
 
-    // Draw ladders
     Object.entries(ladders).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
@@ -219,24 +274,58 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.lineWidth = 4;
       ctx.stroke();
     });
-  }, []);
+  }, [players]);
+
+  // Loading state
+  if (players.length < 2) {
+    return (
+      <div className="flex min-h-screen justify-center items-center">
+        <div className="bg-white text-black rounded-xl px-8 py-8">
+          Waiting for other player to join game
+          <BiLoader className="animate-spin size-7 mx-auto my-4" />
+        </div>
+      </div>
+    );
+  }
+
+  // Get player numbers for current user
+  const isPlayer1 = players[0]?.userId === userId;
+  const isPlayer2 = players[1]?.userId === userId;
+  const myPlayerNumber = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-gray-100 p-4 dark:bg-gray-900">
-      {/* Player 1's dice */}
+    <div className="flex min-h-screen items-center justify-center gap-8 bg-gray-100 p-4 dark:bg-gray-900">
       <div className="flex items-center gap-4">
         <div className="text-center">
-          <h2 className={`mb-2 text-lg font-bold`}>
-            Player 1 {currentPlayer === 1 ? "(Your Turn)" : ""}
+          <h2
+            className={`mb-2 text-lg font-bold ${currentPlayer === 1 ? "text-blue-600 dark:text-blue-400" : ""}`}
+          >
+            Player 1 {isPlayer1 ? "(You)" : ""}{" "}
+            {currentPlayer === 1 ? "(Turn)" : ""}
           </h2>
           <div className="flex gap-2">
-            <Dice />
-            <Dice />
+            <Dice
+              number={number}
+              disabled={
+                !isPlayer1 || currentPlayer !== 1 || isRolling || gameWon
+              }
+              onClick={() => {
+                setIsRolling(true);
+                ws?.send(
+                  JSON.stringify({
+                    type: "ROLL_DICE",
+                    userId,
+                    gameId,
+                  })
+                );
+                // Reset rolling state after animation
+                setTimeout(() => setIsRolling(false), 1000);
+              }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Game board */}
       <div className="relative w-full max-w-2xl">
         <div className="grid grid-cols-10 gap-0.5 rounded-lg border bg-white p-2 dark:border-gray-800 dark:bg-gray-800">
           {squares.map((number) => {
@@ -245,8 +334,6 @@ export default function Board({ gameId }: { gameId: string }) {
             const isSnakeEnd = Object.values(snakes).includes(number);
             const isLadderEnd = Object.values(ladders).includes(number);
             const playersHere = players.filter((p) => p.position === number);
-
-            
 
             return (
               <div
@@ -306,32 +393,43 @@ export default function Board({ gameId }: { gameId: string }) {
         />
       </div>
 
-      {/* Game controls */}
-      <div className="flex flex-col items-center gap-4">
-        <button
-          onClick={rollDice}
-          disabled={isRolling || gameWon}
-          className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+      <div className="text-center">
+        <h2
+          className={`mb-2 text-lg font-bold ${currentPlayer === 2 ? "text-blue-600 dark:text-blue-400" : ""}`}
         >
-          {isRolling ? "Rolling..." : "Roll Dice"}
-        </button>
+          Player 2 {isPlayer2 ? "(You)" : ""}{" "}
+          {currentPlayer === 2 ? "(Turn)" : ""}
+        </h2>
+        <div className="flex gap-2">
+          <Dice
+            number={number}
+            disabled={!isPlayer2 || currentPlayer !== 2 || isRolling || gameWon}
+            onClick={() => {
+              setIsRolling(true);
+              ws?.send(
+                JSON.stringify({
+                  type: "ROLL_DICE",
+                  userId,
+                  gameId,
+                })
+              );
+              setTimeout(() => setIsRolling(false), 1000);
+            }}
+          />
+        </div>
+      </div>
+
+      <div className={`${gameWon ? "fixed" : "hidden"} inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm`}>
         {gameWon && (
           <div className="text-center">
             <h2 className="text-2xl font-bold">
               Player {currentPlayer === 1 ? 2 : 1} Wins! 🎉
             </h2>
             <button
-              onClick={() => {
-                setPlayers([
-                  { id: 1, position: 1, emoji: "👨" },
-                  { id: 2, position: 1, emoji: "👩" },
-                ]);
-                setGameWon(false);
-                setCurrentPlayer(1);
-              }}
+              onClick={() => router.push("/home")}
               className="mt-4 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              Play Again
+              Return to Home
             </button>
           </div>
         )}

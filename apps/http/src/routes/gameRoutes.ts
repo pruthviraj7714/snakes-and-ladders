@@ -47,3 +47,51 @@ gameRouter.post('/create', userMiddleware, async (req : Request, res :Response) 
   }
 })
 
+gameRouter.get('/:gameId', async (req : Request, res : Response) : Promise<void> => {
+  try {
+    const gameId = req.params.gameId;
+    
+    const game = await prisma.game.findFirst({
+      where :  {
+        id : gameId
+      },
+      include : {
+        player1 : true,
+        player2 : true
+      }
+    });
+
+    res.status(200).json({
+      game
+    });
+  } catch (error) {
+    res.status(500).json({
+      message : "Internal Server Error"
+    })
+    return;
+  }
+
+})
+
+gameRouter.delete('/:gameId', async (req : Request, res : Response) : Promise<void> => {
+  try {
+
+    const gameId = req.params.gameId;
+    
+    await prisma.game.delete({
+      where :  {
+        id : gameId
+      }
+    });
+
+    res.status(200).json({
+      message : "Game Room Deleted Successfully"
+    });
+  } catch (error) {
+    res.status(500).json({
+      message : "Internal Server Error"
+    })
+    return;
+  }
+
+})

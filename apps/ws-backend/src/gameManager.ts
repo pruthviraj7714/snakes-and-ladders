@@ -1,4 +1,5 @@
 import { WebSocket } from "ws";
+import  prisma from "@repo/db/client";
 
 interface Game {
   id: string;
@@ -41,7 +42,7 @@ class GameManager {
     return this.gameManagerInstance;
   }
 
-  public joinGame(userId: string, gameId: string, ws: WebSocket) {
+  public async joinGame(userId: string, gameId: string, ws: WebSocket) {
     let game = this.games.get(gameId);
 
     if (!game) {
@@ -61,24 +62,26 @@ class GameManager {
       game.player2 = userId;
       game.player2Socket = ws;
 
-      game.player1Socket?.send(
-        JSON.stringify({ type: "PLAYER_JOINED", userId, game })
-      );
-      game.player2Socket?.send(
-        JSON.stringify({ type: "PLAYER_JOINED", userId, game })
-      );
-    } else {
-      console.log("Game is full!");
+      await prisma.game.update({
+        where : {
+          id : gameId
+        },
+        data : {
+          player2Id : userId
+        }
+      })
+      
+    } else if(game.player1 === userId) {
+      game.player1Socket = ws; 
+    } else if(game.player2 === userId) {
+      game.player2Socket = ws;  
+    }else {
+      ws.send(JSON.stringify({ type: "ERROR", message: "Game is full!" }));
       return;
     }
 
-    ws.send(
-      JSON.stringify({
-        type: "ROOM_JOINED",
-        userId,
-        game,
-      })
-    );
+    game.player1Socket?.send(JSON.stringify({ type: "PLAYER_JOINED", game }));
+    game.player2Socket?.send(JSON.stringify({ type: "PLAYER_JOINED", game }));
   }
 
   public leaveGame(userId: string, gameId: string) {
