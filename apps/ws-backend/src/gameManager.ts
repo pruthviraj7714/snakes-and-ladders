@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import  prisma from "@repo/db/client";
+import prisma from "@repo/db/client";
 
 interface Game {
   id: string;
@@ -14,7 +14,7 @@ interface Game {
 }
 
 const snakes: Record<number, number> = {
-  97: 78,
+  99: 45,
   95: 75,
   88: 24,
   62: 19,
@@ -22,10 +22,11 @@ const snakes: Record<number, number> = {
 };
 
 const ladders: Record<number, number> = {
-  4: 14,
-  9: 31,
+  7: 25,
+  13: 31,
   21: 42,
   28: 84,
+  37: 63,
   51: 67,
 };
 
@@ -63,19 +64,18 @@ class GameManager {
       game.player2Socket = ws;
 
       await prisma.game.update({
-        where : {
-          id : gameId
+        where: {
+          id: gameId,
         },
-        data : {
-          player2Id : userId
-        }
-      })
-      
-    } else if(game.player1 === userId) {
-      game.player1Socket = ws; 
-    } else if(game.player2 === userId) {
-      game.player2Socket = ws;  
-    }else {
+        data: {
+          player2Id: userId,
+        },
+      });
+    } else if (game.player1 === userId) {
+      game.player1Socket = ws;
+    } else if (game.player2 === userId) {
+      game.player2Socket = ws;
+    } else {
       ws.send(JSON.stringify({ type: "ERROR", message: "Game is full!" }));
       return;
     }
@@ -127,15 +127,15 @@ class GameManager {
     } else if (userId === game.player2) {
       game.player2Position += diceRoll;
 
-      if (snakes[game.player2Position]) {
-        //@ts-ignore
-        game.player2Position = snakes[game.player2Position];
-      }
+      // if (snakes[game.player2Position]) {
+      //   //@ts-ignore
+      //   game.player2Position = snakes[game.player2Position];
+      // }
 
-      if (ladders[game.player2Position]) {
-        //@ts-ignore
-        game.player2Position = ladders[game.player2Position];
-      }
+      // if (ladders[game.player2Position]) {
+      //   //@ts-ignore
+      //   game.player2Position = ladders[game.player2Position];
+      // }
 
       game.currTurn = game.player1;
     }
@@ -156,11 +156,13 @@ class GameManager {
       if (snakes[game.player1Position]) {
         //@ts-ignore
         game.player1Position = snakes[game.player1Position];
+        game.currTurn = game.player2;
       }
     } else if (game.player2 === userId) {
       if (snakes[game.player2Position]) {
         //@ts-ignore
         game.player2Position = snakes[game.player2Position];
+        game.currTurn = game.player1;
       }
     }
 

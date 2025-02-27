@@ -34,15 +34,32 @@ export default function Board({ gameId }: { gameId: string }) {
   const { ws, wsError } = useSocket();
   const [currentGameState, setCurrentGameState] =
     useState<GameStateType | null>(null);
+    const router = useRouter();
   const { data: session } = useSession();
   //@ts-ignore
   const userId = session?.user.id;
 
-  const squares = Array.from({ length: 100 }, (_, i) => 100 - i);
-  const router = useRouter();
+
+  const generateSquares = () => {
+    const result = [];
+    for (let row = 9; row >= 0; row--) {
+      const isEvenRow = row % 2 === 0; // 0, 2, 4, 6, 8 are even rows
+
+      for (let col = 0; col < 10; col++) {
+        // For even rows (bottom to top: 0, 2, 4...), go left to right (1->10, 21->30...)
+        // For odd rows (bottom to top: 1, 3, 5...), go right to left (20->11, 40->31...)
+        const position = isEvenRow ? row * 10 + col + 1 : row * 10 + 10 - col;
+
+        result.push(position);
+      }
+    }
+    return result;
+  };
+
+  const squares = generateSquares();
 
   const snakes = {
-    97: 78,
+    99 : 45,
     95: 75,
     88: 24,
     62: 19,
@@ -50,10 +67,11 @@ export default function Board({ gameId }: { gameId: string }) {
   };
 
   const ladders = {
-    4: 14,
-    9: 31,
+    7: 25,
+    13: 31,
     21: 42,
     28: 84,
+    37: 63,
     51: 67,
   };
 
@@ -62,10 +80,10 @@ export default function Board({ gameId }: { gameId: string }) {
     2: "😄",
   };
 
-  const movePlayer = (spaces: number, position? : number) => {
+  const movePlayer = (currPlayer : string , spaces: number, position?: number) => {
     setPlayers((prevPlayers) => {
       return prevPlayers.map((player) => {
-        if (player.id === currentPlayer) {
+        if (player.userId === currPlayer) {
           let newPosition = player.position + spaces;
 
           if (newPosition >= 100) {
@@ -85,19 +103,23 @@ export default function Board({ gameId }: { gameId: string }) {
           }
 
           if (newPosition in snakes) {
-            ws?.send(JSON.stringify({
-              type : "SNAKE_ATE",
-              userId,
-              gameId
-            }))
+            ws?.send(
+              JSON.stringify({
+                type: "SNAKE_ATE",
+                userId : currPlayer,
+                gameId,
+              })
+            );
           }
 
           if (newPosition in ladders) {
-            ws?.send(JSON.stringify({
-              type : "LADDER_FOUND",
-              userId,
-              gameId
-            }))
+            ws?.send(
+              JSON.stringify({
+                type: "LADDER_FOUND",
+                userId : currPlayer,
+                gameId,
+              })
+            );
           }
 
           return { ...player, position: position ? position : newPosition };
@@ -145,8 +167,7 @@ export default function Board({ gameId }: { gameId: string }) {
         ]);
       }
 
-      // Set current player
-      setCurrentPlayer(game.currentPlayer || 1);
+      setCurrentPlayer(1);
       setCurrentGameState(game);
     } catch (error: any) {
       console.error("Error fetching game state:", error.message);
@@ -187,18 +208,30 @@ export default function Board({ gameId }: { gameId: string }) {
 
         case "DICE_ROLLED":
           setNumber(Number(msg.diceRoll));
-          movePlayer(Number(msg.diceRoll));
+          movePlayer(msg.userId, Number(msg.diceRoll));
           setCurrentGameState(msg.game);
           break;
 
         case "SNAKE_EATEN_OUT":
-        movePlayer(0, userId === msg.player1 ? msg.game.player1Position : msg.game.player2Position);
-        break;
+          movePlayer(
+            msg.userId,
+            0,
+            msg.userId === msg.game.player1
+              ? Number(msg.game.player1Position)
+              : Number(msg.game.player2Position)
+          );
+          break;
 
         case "RISED_ON_LADDER":
-        movePlayer(0, userId === msg.player1 ? msg.game.player1Position : msg.game.player2Position);
-        break;
-          
+          movePlayer(
+            msg.userId,
+            0,
+            msg.userId === msg.game.player1
+              ? Number(msg.game.player1Position)
+              : Number(msg.game.player2Position)
+          );
+          break;
+
         case "GAME_WON":
           setGameWon(true);
           break;
@@ -217,7 +250,6 @@ export default function Board({ gameId }: { gameId: string }) {
     };
   }, [ws, userId, gameId]);
 
-  // Draw snakes and ladders on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -225,26 +257,32 @@ export default function Board({ gameId }: { gameId: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Clear the canvas before redrawing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Recalculate the square size based on the actual canvas dimensions
     const squareSize = canvas.width / 10;
 
-    const getCoordinates = (number: number) => {
-      const row = Math.floor((100 - number) / 10);
-      const col =
-        row % 2 === 0
-          ? number % 10 === 0
-            ? 9
-            : (number % 10) - 1
-          : number % 10 === 0
-            ? 0
-            : 10 - (number % 10);
+    const getCoordinates = (position: number) => {
+      const row = 9 - Math.floor((position - 1) / 10);
+      const isEvenRow = (9 - row) % 2 === 0;
+
+      let col;
+      if (isEvenRow) {
+        // Even rows go left to right
+        col = (position - 1) % 10;
+      } else {
+        // Odd rows go right to left
+        col = 9 - ((position - 1) % 10);
+      }
+
       return {
         x: col * squareSize + squareSize / 2,
         y: row * squareSize + squareSize / 2,
       };
     };
 
+    // Draw snakes
     Object.entries(snakes).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
@@ -252,31 +290,95 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
-      const cp1x = start.x;
-      const cp1y = (start.y + end.y) / 2;
-      const cp2x = end.x;
-      const cp2y = (start.y + end.y) / 2;
+      // Create more natural snake curves
+      const midX = (start.x + end.x) / 2;
+      const midY = (start.y + end.y) / 2;
+      const distance = Math.hypot(start.x - end.x, start.y - end.y);
+
+      // Add some waviness to the snake
+      const cp1x =
+        start.x +
+        (midX - start.x) * 0.3 +
+        (Math.random() * 0.5 - 0.25) * distance;
+      const cp1y = start.y + (midY - start.y) * 0.3;
+      const cp2x =
+        end.x + (midX - end.x) * 0.3 + (Math.random() * 0.5 - 0.25) * distance;
+      const cp2y = end.y + (midY - end.y) * 0.3;
 
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, end.x, end.y);
       ctx.strokeStyle = "#ef4444";
       ctx.lineWidth = 4;
       ctx.stroke();
+
+      // Draw snake head
+      ctx.beginPath();
+      ctx.arc(start.x, start.y, 6, 0, 2 * Math.PI);
+      ctx.fillStyle = "#ef4444";
+      ctx.fill();
     });
 
+    // Draw ladders
     Object.entries(ladders).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
 
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    });
-  }, [players]);
+      // Draw the ladder rails
+      const angle = Math.atan2(end.y - start.y, end.x - start.x);
+      const perpAngle = angle + Math.PI / 2;
+      const railDistance = 8;
 
-  // Loading state
+      // Left rail
+      ctx.beginPath();
+      ctx.moveTo(
+        start.x - Math.cos(perpAngle) * railDistance,
+        start.y - Math.sin(perpAngle) * railDistance
+      );
+      ctx.lineTo(
+        end.x - Math.cos(perpAngle) * railDistance,
+        end.y - Math.sin(perpAngle) * railDistance
+      );
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Right rail
+      ctx.beginPath();
+      ctx.moveTo(
+        start.x + Math.cos(perpAngle) * railDistance,
+        start.y + Math.sin(perpAngle) * railDistance
+      );
+      ctx.lineTo(
+        end.x + Math.cos(perpAngle) * railDistance,
+        end.y + Math.sin(perpAngle) * railDistance
+      );
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Draw rungs
+      const distance = Math.hypot(end.x - start.x, end.y - start.y);
+      const steps = Math.floor(distance / 20);
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x1 =
+          start.x * (1 - t) + end.x * t - Math.cos(perpAngle) * railDistance;
+        const y1 =
+          start.y * (1 - t) + end.y * t - Math.sin(perpAngle) * railDistance;
+        const x2 =
+          start.x * (1 - t) + end.x * t + Math.cos(perpAngle) * railDistance;
+        const y2 =
+          start.y * (1 - t) + end.y * t + Math.sin(perpAngle) * railDistance;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = "#22c55e";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  }, [canvasRef.current?.width, canvasRef.current?.height]);
+
   if (players.length < 2) {
     return (
       <div className="flex min-h-screen justify-center items-center">
@@ -288,7 +390,6 @@ export default function Board({ gameId }: { gameId: string }) {
     );
   }
 
-  // Get player numbers for current user
   const isPlayer1 = players[0]?.userId === userId;
   const isPlayer2 = players[1]?.userId === userId;
   const myPlayerNumber = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
@@ -314,7 +415,7 @@ export default function Board({ gameId }: { gameId: string }) {
                 ws?.send(
                   JSON.stringify({
                     type: "ROLL_DICE",
-                    userId,
+                    userId : players[0]?.userId,
                     gameId,
                   })
                 );
@@ -377,7 +478,9 @@ export default function Board({ gameId }: { gameId: string }) {
                 {playersHere.length > 0 && (
                   <div className="absolute bottom-0 left-0 flex">
                     {playersHere.map((player) => (
-                      <span key={player.id}>{player.emoji}</span>
+                      <span className="text-xl" key={player.id}>
+                        {player.emoji}
+                      </span>
                     ))}
                   </div>
                 )}
@@ -409,7 +512,7 @@ export default function Board({ gameId }: { gameId: string }) {
               ws?.send(
                 JSON.stringify({
                   type: "ROLL_DICE",
-                  userId,
+                  userId : players[1]?.userId,
                   gameId,
                 })
               );
@@ -419,7 +522,9 @@ export default function Board({ gameId }: { gameId: string }) {
         </div>
       </div>
 
-      <div className={`${gameWon ? "fixed" : "hidden"} inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm`}>
+      <div
+        className={`${gameWon ? "fixed" : "hidden"} inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm`}
+      >
         {gameWon && (
           <div className="text-center">
             <h2 className="text-2xl font-bold">

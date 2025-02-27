@@ -28,7 +28,7 @@ export const authOptions: NextAuthOptions = {
           });
         }
     
-        const newToken = sign({ id: dbUser.id }, process.env.NEXTAUTH_SECRET!, { expiresIn: "1h" });
+        const newToken = sign({ id: dbUser.id }, process.env.NEXTAUTH_SECRET!);
     
         token.accessToken = newToken;
         token.id = dbUser.id;
