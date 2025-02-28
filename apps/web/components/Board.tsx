@@ -11,7 +11,10 @@ import { useRouter } from "next/navigation";
 
 type PlayerType = {
   id: 1 | 2;
-  userId: string;
+  user: {
+    id: string;
+    username : string;
+  };
   position: number;
   emoji: string;
 };
@@ -31,23 +34,24 @@ export default function Board({ gameId }: { gameId: string }) {
   const [isRolling, setIsRolling] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [players, setPlayers] = useState<PlayerType[]>([]);
+  const [roll1, setRoll1] = useState(false);
+  const [roll2, setRoll2] = useState(false);
+  const [dice1, setDice1] = useState(1);
+  const [dice2, setDice2] = useState(1);
   const { ws, wsError } = useSocket();
   const [currentGameState, setCurrentGameState] =
     useState<GameStateType | null>(null);
-    const router = useRouter();
+  const router = useRouter();
   const { data: session } = useSession();
   //@ts-ignore
   const userId = session?.user.id;
 
-
   const generateSquares = () => {
     const result = [];
     for (let row = 9; row >= 0; row--) {
-      const isEvenRow = row % 2 === 0; // 0, 2, 4, 6, 8 are even rows
+      const isEvenRow = row % 2 === 0;
 
       for (let col = 0; col < 10; col++) {
-        // For even rows (bottom to top: 0, 2, 4...), go left to right (1->10, 21->30...)
-        // For odd rows (bottom to top: 1, 3, 5...), go right to left (20->11, 40->31...)
         const position = isEvenRow ? row * 10 + col + 1 : row * 10 + 10 - col;
 
         result.push(position);
@@ -59,7 +63,7 @@ export default function Board({ gameId }: { gameId: string }) {
   const squares = generateSquares();
 
   const snakes = {
-    99 : 45,
+    99: 45,
     95: 75,
     88: 24,
     62: 19,
@@ -80,10 +84,16 @@ export default function Board({ gameId }: { gameId: string }) {
     2: "😄",
   };
 
-  const movePlayer = (currPlayer : string , spaces: number, position?: number) => {
+  const movePlayer = (
+    currPlayer: string,
+    spaces: number,
+    position?: number
+  ) => {
     setPlayers((prevPlayers) => {
+      console.log(prevPlayers);
+
       return prevPlayers.map((player) => {
-        if (player.userId === currPlayer) {
+        if (player.user.id === currPlayer) {
           let newPosition = player.position + spaces;
 
           if (newPosition >= 100) {
@@ -95,7 +105,7 @@ export default function Board({ gameId }: { gameId: string }) {
                 JSON.stringify({
                   type: "GAME_WON",
                   gameId,
-                  playerId: player.id,
+                  playerId: player.user.id,
                   userId,
                 })
               );
@@ -106,7 +116,7 @@ export default function Board({ gameId }: { gameId: string }) {
             ws?.send(
               JSON.stringify({
                 type: "SNAKE_ATE",
-                userId : currPlayer,
+                userId: currPlayer,
                 gameId,
               })
             );
@@ -116,7 +126,7 @@ export default function Board({ gameId }: { gameId: string }) {
             ws?.send(
               JSON.stringify({
                 type: "LADDER_FOUND",
-                userId : currPlayer,
+                userId: currPlayer,
                 gameId,
               })
             );
@@ -138,29 +148,26 @@ export default function Board({ gameId }: { gameId: string }) {
       const res = await axios.get(`${BACKEND_URL}/game/${gameId}`);
       const game = res.data.game;
 
-      // Reset players array first to avoid duplicates
       setPlayers([]);
 
-      // Add player 1
       if (game.player1) {
         setPlayers((prev) => [
           ...prev,
           {
             id: 1,
-            userId: game.player1,
+            user: game.player1,
             position: Number(game.player1Position) || 1,
             emoji: PLAYER_EMOJIS[1],
           },
         ]);
       }
 
-      // Add player 2 if exists
       if (game.player2) {
         setPlayers((prev) => [
           ...prev,
           {
             id: 2,
-            userId: game.player2,
+            user: game.player2,
             position: Number(game.player2Position) || 1,
             emoji: PLAYER_EMOJIS[2],
           },
@@ -175,12 +182,10 @@ export default function Board({ gameId }: { gameId: string }) {
     }
   };
 
-  // Initial game state fetch
   useEffect(() => {
     fetchInitialGameState();
   }, [gameId]);
 
-  // WebSocket handler
   useEffect(() => {
     if (!ws || !userId) return;
 
@@ -194,20 +199,23 @@ export default function Board({ gameId }: { gameId: string }) {
 
     ws.onmessage = ({ data }) => {
       const msg = JSON.parse(data);
+      console.log(msg);
+
       switch (msg.type) {
         case "PLAYER_JOINED":
           fetchInitialGameState();
           break;
 
         case "ROOM_LEFT":
-          if (players.some((p) => p.userId === msg.userId)) {
-            setPlayers((prev) => prev.filter((p) => p.userId !== msg.userId));
+          if (players.some((p) => p.user.id === msg.userId)) {
+            setPlayers((prev) => prev.filter((p) => p.user.id !== msg.userId));
           }
           setCurrentGameState(msg.game);
           break;
 
         case "DICE_ROLLED":
-          setNumber(Number(msg.diceRoll));
+          currentPlayer === 2 ?
+            setDice1(Number(msg.diceRoll)) : setDice2(Number(msg.diceRoll));
           movePlayer(msg.userId, Number(msg.diceRoll));
           setCurrentGameState(msg.game);
           break;
@@ -390,8 +398,8 @@ export default function Board({ gameId }: { gameId: string }) {
     );
   }
 
-  const isPlayer1 = players[0]?.userId === userId;
-  const isPlayer2 = players[1]?.userId === userId;
+  const isPlayer1 = players[0]?.user.id === userId;
+  const isPlayer2 = players[1]?.user.id === userId;
   const myPlayerNumber = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
 
   return (
@@ -401,26 +409,27 @@ export default function Board({ gameId }: { gameId: string }) {
           <h2
             className={`mb-2 text-lg font-bold ${currentPlayer === 1 ? "text-blue-600 dark:text-blue-400" : ""}`}
           >
-            Player 1 {isPlayer1 ? "(You)" : ""}{" "}
+            {players[0]?.user.username} {isPlayer1 ? "(You)" : ""}{" "}
             {currentPlayer === 1 ? "(Turn)" : ""}
           </h2>
           <div className="flex gap-2">
             <Dice
-              number={number}
+            rolling={roll1}
+              number={dice1}
               disabled={
-                !isPlayer1 || currentPlayer !== 1 || isRolling || gameWon
+               currentPlayer === 2
               }
               onClick={() => {
-                setIsRolling(true);
+                setRoll1(true);
                 ws?.send(
                   JSON.stringify({
                     type: "ROLL_DICE",
-                    userId : players[0]?.userId,
+                    userId: players[0]?.user.id,
                     gameId,
                   })
                 );
                 // Reset rolling state after animation
-                setTimeout(() => setIsRolling(false), 1000);
+                setTimeout(() => setRoll1(false), 1000);
               }}
             />
           </div>
@@ -500,23 +509,32 @@ export default function Board({ gameId }: { gameId: string }) {
         <h2
           className={`mb-2 text-lg font-bold ${currentPlayer === 2 ? "text-blue-600 dark:text-blue-400" : ""}`}
         >
-          Player 2 {isPlayer2 ? "(You)" : ""}{" "}
+          {players[1]?.user.username} {isPlayer2 ? "(You)" : ""}{" "}
           {currentPlayer === 2 ? "(Turn)" : ""}
         </h2>
+
         <div className="flex gap-2">
           <Dice
-            number={number}
-            disabled={!isPlayer2 || currentPlayer !== 2 || isRolling || gameWon}
+          rolling={roll2}
+            number={dice2}
+            // disabled={
+            //   !isPlayer2 ||
+            //   currentPlayer !== 2 ||
+            //   isRolling ||
+            //   gameWon ||
+            //   userId !== players[1]?.user.id
+            // }
+            disabled={currentPlayer === 1}
             onClick={() => {
-              setIsRolling(true);
+              setRoll2(true);
               ws?.send(
                 JSON.stringify({
                   type: "ROLL_DICE",
-                  userId : players[1]?.userId,
+                  userId: players[1]?.user.id,
                   gameId,
                 })
               );
-              setTimeout(() => setIsRolling(false), 1000);
+              setTimeout(() => setRoll2(false), 1000);
             }}
           />
         </div>
@@ -528,7 +546,7 @@ export default function Board({ gameId }: { gameId: string }) {
         {gameWon && (
           <div className="text-center">
             <h2 className="text-2xl font-bold">
-              Player {currentPlayer === 1 ? 2 : 1} Wins! 🎉
+              Player {currentPlayer === 1 ? players[0]?.user.username : players[1]?.user.username} Wins! 🎉
             </h2>
             <button
               onClick={() => router.push("/home")}
