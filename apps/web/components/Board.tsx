@@ -214,8 +214,11 @@ export default function Board({ gameId }: { gameId: string }) {
           break;
 
         case "DICE_ROLLED":
-          currentPlayer === 2 ?
-            setDice1(Number(msg.diceRoll)) : setDice2(Number(msg.diceRoll));
+          if(currentPlayer === 1) {
+            setDice2(Number(msg.diceRoll));
+          }else if(currentPlayer === 2) {
+            setDice1(Number(msg.diceRoll))
+          }
           movePlayer(msg.userId, Number(msg.diceRoll));
           setCurrentGameState(msg.game);
           break;
@@ -517,13 +520,6 @@ export default function Board({ gameId }: { gameId: string }) {
           <Dice
           rolling={roll2}
             number={dice2}
-            // disabled={
-            //   !isPlayer2 ||
-            //   currentPlayer !== 2 ||
-            //   isRolling ||
-            //   gameWon ||
-            //   userId !== players[1]?.user.id
-            // }
             disabled={currentPlayer === 1}
             onClick={() => {
               setRoll2(true);
