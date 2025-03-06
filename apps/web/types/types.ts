@@ -8,5 +8,23 @@ export interface IGame {
   player2Id: string | null;
   winnerId: string | null;
   currentTurn: string | null;
-  gameData: any;
 }
+
+
+export type PlayerType = {
+  id: 1 | 2;
+  user: {
+    id: string;
+    username : string;
+  };
+  position: number;
+  emoji: string;
+};
+
+export type GameStateType = {
+  player1: string;
+  player2: string;
+  player1Position: number;
+  player2Position: number;
+  currentPlayer: 1 | 2;
+};

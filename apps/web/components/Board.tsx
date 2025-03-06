@@ -8,30 +8,47 @@ import { BiLoader } from "react-icons/bi";
 import axios from "axios";
 import { BACKEND_URL } from "../config/config";
 import { useRouter } from "next/navigation";
+import { GameStateType, PlayerType } from "../types/types";
 
-type PlayerType = {
-  id: 1 | 2;
-  user: {
-    id: string;
-    username : string;
-  };
-  position: number;
-  emoji: string;
+const generateSquares = () => {
+  const result = [];
+  for (let row = 9; row >= 0; row--) {
+    const isEvenRow = row % 2 === 0;
+
+    for (let col = 0; col < 10; col++) {
+      const position = isEvenRow ? row * 10 + col + 1 : row * 10 + 10 - col;
+
+      result.push(position);
+    }
+  }
+  return result;
 };
 
-type GameStateType = {
-  player1: string;
-  player2: string;
-  player1Position: number;
-  player2Position: number;
-  currentPlayer: 1 | 2;
+const snakes = {
+  99: 45,
+  95: 75,
+  88: 24,
+  62: 19,
+  36: 6,
+};
+
+const ladders = {
+  7: 25,
+  13: 31,
+  21: 42,
+  28: 84,
+  37: 63,
+  51: 67,
+};
+
+const PLAYER_EMOJIS = {
+  1: "😎",
+  2: "😄",
 };
 
 export default function Board({ gameId }: { gameId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
-  const [number, setNumber] = useState(1);
-  const [isRolling, setIsRolling] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [players, setPlayers] = useState<PlayerType[]>([]);
   const [roll1, setRoll1] = useState(false);
@@ -45,55 +62,29 @@ export default function Board({ gameId }: { gameId: string }) {
   const { data: session } = useSession();
   //@ts-ignore
   const userId = session?.user.id;
-
-  const generateSquares = () => {
-    const result = [];
-    for (let row = 9; row >= 0; row--) {
-      const isEvenRow = row % 2 === 0;
-
-      for (let col = 0; col < 10; col++) {
-        const position = isEvenRow ? row * 10 + col + 1 : row * 10 + 10 - col;
-
-        result.push(position);
-      }
-    }
-    return result;
-  };
-
   const squares = generateSquares();
-
-  const snakes = {
-    99: 45,
-    95: 75,
-    88: 24,
-    62: 19,
-    36: 6,
-  };
-
-  const ladders = {
-    7: 25,
-    13: 31,
-    21: 42,
-    28: 84,
-    37: 63,
-    51: 67,
-  };
-
-  const PLAYER_EMOJIS = {
-    1: "😎",
-    2: "😄",
-  };
 
   const movePlayer = (
     currPlayer: string,
     spaces: number,
-    position?: number
+    position?: number,
+    skipTurnChange: boolean = false
   ) => {
-    setPlayers((prevPlayers) => {
-      console.log(prevPlayers);
+    const player = players.find((p) => p.user.id === currPlayer);
 
+    if (player?.id === 1) {
+      setDice1(spaces);
+    } else if (player?.id === 2) {
+      setDice2(spaces);
+    }
+
+    setPlayers((prevPlayers) => {
       return prevPlayers.map((player) => {
         if (player.user.id === currPlayer) {
+          if (position !== undefined) {
+            return { ...player, position };
+          }
+
           let newPosition = player.position + spaces;
 
           if (newPosition >= 100) {
@@ -132,14 +123,14 @@ export default function Board({ gameId }: { gameId: string }) {
             );
           }
 
-          return { ...player, position: position ? position : newPosition };
+          return { ...player, position: newPosition };
         }
         return player;
       });
     });
 
-    if (!gameWon) {
-      setCurrentPlayer(currentPlayer === 1 ? 2 : 1);
+    if (!gameWon && !skipTurnChange) {
+      setCurrentPlayer((prev) => (prev === 1 ? 2 : 1));
     }
   };
 
@@ -174,7 +165,7 @@ export default function Board({ gameId }: { gameId: string }) {
         ]);
       }
 
-      setCurrentPlayer(1);
+      setCurrentPlayer(game.currentTurn === game.player1 ? 1 : 2);
       setCurrentGameState(game);
     } catch (error: any) {
       console.error("Error fetching game state:", error.message);
@@ -214,11 +205,6 @@ export default function Board({ gameId }: { gameId: string }) {
           break;
 
         case "DICE_ROLLED":
-          if(currentPlayer === 1) {
-            setDice2(Number(msg.diceRoll));
-          }else if(currentPlayer === 2) {
-            setDice1(Number(msg.diceRoll))
-          }
           movePlayer(msg.userId, Number(msg.diceRoll));
           setCurrentGameState(msg.game);
           break;
@@ -229,7 +215,8 @@ export default function Board({ gameId }: { gameId: string }) {
             0,
             msg.userId === msg.game.player1
               ? Number(msg.game.player1Position)
-              : Number(msg.game.player2Position)
+              : Number(msg.game.player2Position),
+            true
           );
           break;
 
@@ -239,7 +226,8 @@ export default function Board({ gameId }: { gameId: string }) {
             0,
             msg.userId === msg.game.player1
               ? Number(msg.game.player1Position)
-              : Number(msg.game.player2Position)
+              : Number(msg.game.player2Position),
+            true
           );
           break;
 
@@ -268,10 +256,8 @@ export default function Board({ gameId }: { gameId: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clear the canvas before redrawing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Recalculate the square size based on the actual canvas dimensions
     const squareSize = canvas.width / 10;
 
     const getCoordinates = (position: number) => {
@@ -280,10 +266,8 @@ export default function Board({ gameId }: { gameId: string }) {
 
       let col;
       if (isEvenRow) {
-        // Even rows go left to right
         col = (position - 1) % 10;
       } else {
-        // Odd rows go right to left
         col = 9 - ((position - 1) % 10);
       }
 
@@ -293,7 +277,6 @@ export default function Board({ gameId }: { gameId: string }) {
       };
     };
 
-    // Draw snakes
     Object.entries(snakes).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
@@ -301,12 +284,10 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
-      // Create more natural snake curves
       const midX = (start.x + end.x) / 2;
       const midY = (start.y + end.y) / 2;
       const distance = Math.hypot(start.x - end.x, start.y - end.y);
 
-      // Add some waviness to the snake
       const cp1x =
         start.x +
         (midX - start.x) * 0.3 +
@@ -321,24 +302,20 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.lineWidth = 4;
       ctx.stroke();
 
-      // Draw snake head
       ctx.beginPath();
       ctx.arc(start.x, start.y, 6, 0, 2 * Math.PI);
       ctx.fillStyle = "#ef4444";
       ctx.fill();
     });
 
-    // Draw ladders
     Object.entries(ladders).forEach(([from, to]) => {
       const start = getCoordinates(Number(from));
       const end = getCoordinates(Number(to));
 
-      // Draw the ladder rails
       const angle = Math.atan2(end.y - start.y, end.x - start.x);
       const perpAngle = angle + Math.PI / 2;
       const railDistance = 8;
 
-      // Left rail
       ctx.beginPath();
       ctx.moveTo(
         start.x - Math.cos(perpAngle) * railDistance,
@@ -352,7 +329,6 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Right rail
       ctx.beginPath();
       ctx.moveTo(
         start.x + Math.cos(perpAngle) * railDistance,
@@ -366,7 +342,6 @@ export default function Board({ gameId }: { gameId: string }) {
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      // Draw rungs
       const distance = Math.hypot(end.x - start.x, end.y - start.y);
       const steps = Math.floor(distance / 20);
       for (let i = 0; i <= steps; i++) {
@@ -403,7 +378,6 @@ export default function Board({ gameId }: { gameId: string }) {
 
   const isPlayer1 = players[0]?.user.id === userId;
   const isPlayer2 = players[1]?.user.id === userId;
-  const myPlayerNumber = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center gap-8 bg-gray-100 p-4 dark:bg-gray-900">
@@ -415,12 +389,15 @@ export default function Board({ gameId }: { gameId: string }) {
             {players[0]?.user.username} {isPlayer1 ? "(You)" : ""}{" "}
             {currentPlayer === 1 ? "(Turn)" : ""}
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             <Dice
-            rolling={roll1}
+              rolling={roll1}
               number={dice1}
               disabled={
-               currentPlayer === 2
+                currentPlayer === 2 ||
+                roll1 ||
+                roll2 ||
+                userId === currentGameState?.player2
               }
               onClick={() => {
                 setRoll1(true);
@@ -431,10 +408,12 @@ export default function Board({ gameId }: { gameId: string }) {
                     gameId,
                   })
                 );
-                // Reset rolling state after animation
                 setTimeout(() => setRoll1(false), 1000);
               }}
             />
+            {userId === currentGameState?.player1 && (
+              <div className="">It's {dice1}</div>
+            )}
           </div>
         </div>
       </div>
@@ -516,11 +495,16 @@ export default function Board({ gameId }: { gameId: string }) {
           {currentPlayer === 2 ? "(Turn)" : ""}
         </h2>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col">
           <Dice
-          rolling={roll2}
+            rolling={roll2}
             number={dice2}
-            disabled={currentPlayer === 1}
+            disabled={
+              currentPlayer === 1 ||
+              roll1 ||
+              roll2 ||
+              userId === currentGameState?.player1
+            }
             onClick={() => {
               setRoll2(true);
               ws?.send(
@@ -533,6 +517,9 @@ export default function Board({ gameId }: { gameId: string }) {
               setTimeout(() => setRoll2(false), 1000);
             }}
           />
+          {userId === currentGameState?.player2 && (
+            <div className="">It's {dice2}</div>
+          )}
         </div>
       </div>
 
@@ -542,7 +529,11 @@ export default function Board({ gameId }: { gameId: string }) {
         {gameWon && (
           <div className="text-center">
             <h2 className="text-2xl font-bold">
-              Player {currentPlayer === 1 ? players[0]?.user.username : players[1]?.user.username} Wins! 🎉
+              Player{" "}
+              {currentPlayer === 1
+                ? players[1]?.user.username
+                : players[0]?.user.username}{" "}
+              Wins! 🎉
             </h2>
             <button
               onClick={() => router.push("/home")}

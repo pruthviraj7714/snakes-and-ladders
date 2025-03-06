@@ -59,18 +59,37 @@ class GameManager {
         player2Socket: null,
       };
       this.games.set(gameId, game);
+      try {
+        await prisma.game.update({
+          where: {
+            id: gameId,
+          },
+          data: {
+            player1Id: userId,
+          },
+        });
+        
+      } catch (error) {
+        console.error(error);
+      }
     } else if (!game.player2 && userId !== game.player1) {
       game.player2 = userId;
       game.player2Socket = ws;
 
-      await prisma.game.update({
-        where: {
-          id: gameId,
-        },
-        data: {
-          player2Id: userId,
-        },
-      });
+      try{
+        await prisma.game.update({
+          where: {
+            id: gameId,
+          },
+          data: {
+            player2Id: userId,
+            status : "ACTIVE"
+          },
+        });
+
+      }catch(error) {
+        console.error(error);
+      }
     } else if (game.player1 === userId) {
       game.player1Socket = ws;
     } else if (game.player2 === userId) {
@@ -108,7 +127,7 @@ class GameManager {
     }
   }
 
-  public rollDice(userId: string, gameId: string) {
+  public async rollDice(userId: string, gameId: string) {
     let game = this.games.get(gameId);
     if (!game) return;
 
@@ -127,18 +146,19 @@ class GameManager {
     } else if (userId === game.player2) {
       game.player2Position += diceRoll;
 
-      // if (snakes[game.player2Position]) {
-      //   //@ts-ignore
-      //   game.player2Position = snakes[game.player2Position];
-      // }
-
-      // if (ladders[game.player2Position]) {
-      //   //@ts-ignore
-      //   game.player2Position = ladders[game.player2Position];
-      // }
-
       game.currTurn = game.player1;
     }
+
+    await prisma.game.update({
+      where : {
+        id : gameId
+      },
+      data : {
+        player1Position : game.player1Position,
+        player2Position : game.player2Position,
+        currentTurn : game.currTurn
+      }
+    })
 
     game.player1Socket?.send(
       JSON.stringify({ type: "DICE_ROLLED", diceRoll, userId, game })
@@ -148,7 +168,7 @@ class GameManager {
     );
   }
 
-  public snakeAte(userId: string, gameId: string) {
+  public async snakeAte(userId: string, gameId: string) {
     let game = this.games.get(gameId);
     if (!game) return;
 
@@ -166,6 +186,17 @@ class GameManager {
       }
     }
 
+    await prisma.game.update({
+      where : {
+        id : gameId
+      },
+      data : {
+        player1Position : game.player1Position,
+        player2Position : game.player2Position,
+        currentTurn : game.currTurn
+      }
+    })
+
     game.player1Socket?.send(
       JSON.stringify({ type: "SNAKE_EATEN_OUT", userId, game })
     );
@@ -174,7 +205,7 @@ class GameManager {
     );
   }
 
-  public ladderRise(userId: string, gameId: string) {
+  public async ladderRise(userId: string, gameId: string) {
     let game = this.games.get(gameId);
     if (!game) return;
 
@@ -189,6 +220,17 @@ class GameManager {
         game.player2Position = ladders[game.player2Position];
       }
     }
+
+    await prisma.game.update({
+      where : {
+        id : gameId
+      },
+      data : {
+        player1Position : game.player1Position,
+        player2Position : game.player2Position,
+        currentTurn : game.currTurn
+      }
+    })
 
     game.player1Socket?.send(
       JSON.stringify({ type: "RISED_ON_LADDER", userId, game })

@@ -30,7 +30,7 @@ gameRouter.post('/create', userMiddleware, async (req : Request, res :Response) 
       data : {
         bidAmount,
         title,
-        player1Id : req.userId, 
+        player1Id : null, 
         player2Id : null
       }
     })

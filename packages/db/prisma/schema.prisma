@@ -17,7 +17,7 @@ model User {
   id        String   @id @default(uuid())
   username  String   @unique
   balance   Int      @default(0)
-  githubId   String @unique
+  githubId  String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -33,19 +33,18 @@ model Game {
   bidAmount Int
   status    GameStatus @default(WAITING)
   startedAt DateTime   @default(now())
-  title     String 
+  title     String
 
-  player1Id String?
-  player2Id String?
-  player1   User?    @relation("Player1Games", fields: [player1Id], references: [id])
-  player2   User?   @relation("Player2Games", fields: [player2Id], references: [id])
+  player1Id       String?
+  player2Id       String?
+  player1         User?   @relation("Player1Games", fields: [player1Id], references: [id])
+  player2         User?   @relation("Player2Games", fields: [player2Id], references: [id])
+  player1Position Int?    @default(1)
+  player2Position Int?    @default(1)
 
   winnerId String?
 
   currentTurn String?
-  gameData    Json?
-
-  @@unique([player1Id, player2Id])
   @@index([status])
 }
 
