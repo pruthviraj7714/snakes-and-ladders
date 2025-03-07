@@ -66,6 +66,7 @@ class GameManager {
           },
           data: {
             player1Id: userId,
+            currentTurn : userId
           },
         });
         

@@ -102,25 +102,28 @@ export default function Board({ gameId }: { gameId: string }) {
               );
             }
           }
-
           if (newPosition in snakes) {
-            ws?.send(
-              JSON.stringify({
-                type: "SNAKE_ATE",
-                userId: currPlayer,
-                gameId,
-              })
-            );
+            setTimeout(() => {
+              ws?.send(
+                JSON.stringify({
+                  type: "SNAKE_ATE",
+                  userId: currPlayer,
+                  gameId,
+                })
+              );
+            }, 500);
           }
 
           if (newPosition in ladders) {
-            ws?.send(
-              JSON.stringify({
-                type: "LADDER_FOUND",
-                userId: currPlayer,
-                gameId,
-              })
-            );
+            setTimeout(() => {
+              ws?.send(
+                JSON.stringify({
+                  type: "LADDER_FOUND",
+                  userId: currPlayer,
+                  gameId,
+                })
+              );
+            }, 500);
           }
 
           return { ...player, position: newPosition };
@@ -165,7 +168,7 @@ export default function Board({ gameId }: { gameId: string }) {
         ]);
       }
 
-      setCurrentPlayer(game.currentTurn === game.player1 ? 1 : 2);
+      setCurrentPlayer(game.currTurn === game.player1 ? 1 : 2);
       setCurrentGameState(game);
     } catch (error: any) {
       console.error("Error fetching game state:", error.message);
@@ -210,25 +213,21 @@ export default function Board({ gameId }: { gameId: string }) {
           break;
 
         case "SNAKE_EATEN_OUT":
-          movePlayer(
-            msg.userId,
-            0,
+          const newSnakePosition =
             msg.userId === msg.game.player1
               ? Number(msg.game.player1Position)
-              : Number(msg.game.player2Position),
-            true
-          );
+              : Number(msg.game.player2Position);
+          movePlayer(msg.userId, 0, newSnakePosition, true);
+          setCurrentGameState(msg.game);
           break;
 
         case "RISED_ON_LADDER":
-          movePlayer(
-            msg.userId,
-            0,
+          const newLadderPosition =
             msg.userId === msg.game.player1
               ? Number(msg.game.player1Position)
-              : Number(msg.game.player2Position),
-            true
-          );
+              : Number(msg.game.player2Position);
+          movePlayer(msg.userId, 0, newLadderPosition, true);
+          setCurrentGameState(msg.game);
           break;
 
         case "GAME_WON":
@@ -379,6 +378,8 @@ export default function Board({ gameId }: { gameId: string }) {
   const isPlayer1 = players[0]?.user.id === userId;
   const isPlayer2 = players[1]?.user.id === userId;
 
+  
+
   return (
     <div className="flex min-h-screen items-center justify-center gap-8 bg-gray-100 p-4 dark:bg-gray-900">
       <div className="flex items-center gap-4">
@@ -397,7 +398,7 @@ export default function Board({ gameId }: { gameId: string }) {
                 currentPlayer === 2 ||
                 roll1 ||
                 roll2 ||
-                userId === currentGameState?.player2
+                userId === players[1]?.user.id
               }
               onClick={() => {
                 setRoll1(true);
@@ -503,7 +504,7 @@ export default function Board({ gameId }: { gameId: string }) {
               currentPlayer === 1 ||
               roll1 ||
               roll2 ||
-              userId === currentGameState?.player1
+              userId === players[0]?.user.id
             }
             onClick={() => {
               setRoll2(true);
